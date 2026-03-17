@@ -858,6 +858,12 @@ class Config:
         else:
             # 未显式配置时，根据消息类型选择默认字节数
             wechat_max_bytes = 2048 if wechat_msg_type_lower == 'text' else 4000
+
+        legacy_run_immediately = parse_env_bool(os.getenv('RUN_IMMEDIATELY'), default=True)
+        schedule_run_immediately = parse_env_bool(
+            os.getenv('SCHEDULE_RUN_IMMEDIATELY'),
+            default=legacy_run_immediately,
+        )
         
         return cls(
             stock_list=stock_list,
@@ -1002,8 +1008,8 @@ class Config:
             https_proxy=os.getenv('HTTPS_PROXY'),
             schedule_enabled=os.getenv('SCHEDULE_ENABLED', 'false').lower() == 'true',
             schedule_time=os.getenv('SCHEDULE_TIME', '18:00'),
-            schedule_run_immediately=os.getenv('SCHEDULE_RUN_IMMEDIATELY', 'true').lower() == 'true',
-            run_immediately=os.getenv('RUN_IMMEDIATELY', 'true').lower() == 'true',
+            schedule_run_immediately=schedule_run_immediately,
+            run_immediately=legacy_run_immediately,
             market_review_enabled=os.getenv('MARKET_REVIEW_ENABLED', 'true').lower() == 'true',
             market_review_region=cls._parse_market_review_region(
                 os.getenv('MARKET_REVIEW_REGION', 'cn')
