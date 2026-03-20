@@ -229,7 +229,9 @@ def load_skill_from_markdown(filepath: Union[str, Path]) -> Skill:
     allowed_tools = _coerce_string_list(metadata.get("allowed-tools"))
     if not allowed_tools:
         allowed_tools = _coerce_string_list(metadata.get("allowed_tools"))
-    required_tools = _coerce_string_list(metadata.get("required_tools"))
+    required_tools = _coerce_string_list(metadata.get("required-tools"))
+    if not required_tools:
+        required_tools = _coerce_string_list(metadata.get("required_tools"))
 
     return Skill(
         name=skill_name,

@@ -255,6 +255,17 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertNotIn("AGENT_STRATEGY_AUTOWEIGHT", items)
         self.assertNotIn("AGENT_STRATEGY_ROUTING", items)
 
+    def test_get_config_respects_empty_canonical_skill_field_over_legacy_alias(self) -> None:
+        self._rewrite_env(
+            "AGENT_SKILL_DIR=",
+            "AGENT_STRATEGY_DIR=legacy-strategies",
+        )
+
+        payload = self.service.get_config(include_schema=True)
+        items = {item["key"]: item for item in payload["items"]}
+
+        self.assertEqual(items["AGENT_SKILL_DIR"]["value"], "")
+
     def test_get_config_normalizes_legacy_orchestrator_mode_for_ui(self) -> None:
         self._rewrite_env("AGENT_ORCHESTRATOR_MODE=strategy")
 

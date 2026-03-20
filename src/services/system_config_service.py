@@ -106,9 +106,17 @@ class SystemConfigService:
             display_map[key] = cls._normalize_display_value(key, value)
 
         for canonical_key, candidates in cls._DISPLAY_KEY_ALIASES.items():
+            canonical_env_key = candidates[0]
+            if canonical_env_key in raw_upper:
+                display_map[canonical_key] = cls._normalize_display_value(
+                    canonical_key,
+                    raw_upper[canonical_env_key],
+                )
+                continue
+
             selected_value: Optional[str] = None
             candidate_seen = False
-            for candidate_key in candidates:
+            for candidate_key in candidates[1:]:
                 if candidate_key not in raw_upper:
                     continue
                 candidate_seen = True
@@ -118,7 +126,12 @@ class SystemConfigService:
                     break
             if candidate_seen:
                 if selected_value is None:
-                    selected_value = raw_upper.get(candidates[0], "")
+                    for candidate_key in candidates[1:]:
+                        if candidate_key in raw_upper:
+                            selected_value = raw_upper[candidate_key]
+                            break
+                if selected_value is None:
+                    selected_value = ""
                 display_map[canonical_key] = cls._normalize_display_value(
                     canonical_key,
                     selected_value,

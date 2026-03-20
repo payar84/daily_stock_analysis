@@ -16,6 +16,10 @@ import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from tests.litellm_stub import ensure_litellm_stub
+
+ensure_litellm_stub()
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.agent.tools.registry import (
@@ -604,6 +608,7 @@ instructions: 自然语言策略描述 {name}
 name: explain-code
 description: Explain code with diagrams
 allowed-tools: Read, Grep
+required-tools: analyze_trend, get_daily_history
 context: fork
 agent: explorer
 ---
@@ -615,6 +620,7 @@ When explaining code, always include an ASCII diagram.
             self.assertEqual(skill.name, "explain-code")
             self.assertEqual(skill.description, "Explain code with diagrams")
             self.assertEqual(skill.allowed_tools, ["Read", "Grep"])
+            self.assertEqual(skill.required_tools, ["analyze_trend", "get_daily_history"])
             self.assertEqual(skill.execution_context, "fork")
             self.assertEqual(skill.subagent_type, "explorer")
             self.assertEqual(skill.bundle_dir, str(skill_dir))
