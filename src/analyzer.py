@@ -13,6 +13,7 @@ A股自选股智能分析系统 - AI分析层
 import json
 import logging
 import math
+import re
 import time
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, List, Tuple
@@ -45,8 +46,64 @@ from src.report_language import (
 )
 from src.schemas.report_schema import AnalysisReportSchema
 from src.market_context import get_market_role, get_market_guidelines
+from src.logging_config import is_sensitive_log_preview_enabled
 
 logger = logging.getLogger(__name__)
+
+_LLM_PREVIEW_MAX_CHARS = 240
+_LLM_SENSITIVE_PATTERNS = (
+    (
+        re.compile(r"(?i)\b(authorization)\s*[:=]\s*bearer\s+\S+"),
+        r"\1=Bearer [REDACTED]",
+    ),
+    (
+        re.compile(r"(?i)\b(cookie)\s*[:=]\s*[^;\s]+(?:;[^\n\r]*)?"),
+        r"\1=[REDACTED]",
+    ),
+    (
+        re.compile(
+            r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|session[_-]?id)\b\s*[:=]\s*(['\"]?)[^\s,;]+(\2)"
+        ),
+        r"\1=\2[REDACTED]\3",
+    ),
+    (
+        re.compile(r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|session[_-]?id)\b\s*[:=]\s*[^\s,;]+"),
+        r"\1=[REDACTED]",
+    ),
+    (
+        re.compile(r"(?i)\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b"),
+        "[REDACTED_EMAIL]",
+    ),
+)
+
+
+def _should_log_llm_content_preview(config: Optional[Config] = None) -> bool:
+    """Allow LLM content preview only under explicit debug switches."""
+    if is_sensitive_log_preview_enabled():
+        return True
+    runtime_config = config or get_config()
+    return bool(
+        getattr(runtime_config, "debug", False)
+        or str(getattr(runtime_config, "log_level", "INFO") or "INFO").upper() == "DEBUG"
+    )
+
+
+def _sanitize_llm_log_preview(content: str, max_chars: int = _LLM_PREVIEW_MAX_CHARS) -> str:
+    """Normalize, redact, and truncate preview text for logs."""
+    normalized = re.sub(r"\s+", " ", str(content or "")).strip()
+    if not normalized:
+        return "[empty]"
+    sanitized = normalized
+    for pattern, replacement in _LLM_SENSITIVE_PATTERNS:
+        sanitized = pattern.sub(replacement, sanitized)
+    if len(sanitized) <= max_chars:
+        return sanitized
+    return sanitized[:max_chars].rstrip() + "..."
+
+
+def _build_llm_log_preview(label: str, content: str, max_chars: int = _LLM_PREVIEW_MAX_CHARS) -> str:
+    """Build a safe one-line preview entry for debug logs."""
+    return f"[{label}] len={len(content or '')} preview={_sanitize_llm_log_preview(content, max_chars=max_chars)}"
 
 
 def check_content_integrity(result: "AnalysisResult") -> Tuple[bool, List[str]]:
@@ -1175,16 +1232,15 @@ class GeminiAnalyzer:
             prompt = self._format_prompt(context, name, news_context, report_language=report_language)
             
             config = self._get_runtime_config()
+            allow_content_preview = _should_log_llm_content_preview(config)
             model_name = config.litellm_model or "unknown"
             logger.info(f"========== AI 分析 {name}({code}) ==========")
             logger.info(f"[LLM配置] 模型: {model_name}")
             logger.info(f"[LLM配置] Prompt 长度: {len(prompt)} 字符")
             logger.info(f"[LLM配置] 是否包含新闻: {'是' if news_context else '否'}")
 
-            # 记录完整 prompt 到日志（INFO级别记录摘要，DEBUG记录完整）
-            prompt_preview = prompt[:500] + "..." if len(prompt) > 500 else prompt
-            logger.info(f"[LLM Prompt 预览]\n{prompt_preview}")
-            logger.debug(f"=== 完整 Prompt ({len(prompt)}字符) ===\n{prompt}\n=== End Prompt ===")
+            if allow_content_preview:
+                logger.debug(_build_llm_log_preview("LLM Prompt 调试预览", prompt))
 
             # 设置生成配置
             generation_config = {
@@ -1212,11 +1268,8 @@ class GeminiAnalyzer:
                 logger.info(
                     f"[LLM返回] {model_name} 响应成功, 耗时 {elapsed:.2f}s, 响应长度 {len(response_text)} 字符"
                 )
-                response_preview = response_text[:300] + "..." if len(response_text) > 300 else response_text
-                logger.info(f"[LLM返回 预览]\n{response_preview}")
-                logger.debug(
-                    f"=== {model_name} 完整响应 ({len(response_text)}字符) ===\n{response_text}\n=== End Response ==="
-                )
+                if allow_content_preview:
+                    logger.debug(_build_llm_log_preview("LLM返回 调试预览", response_text))
 
                 # 解析响应
                 result = self._parse_response(response_text, code, name)
