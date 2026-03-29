@@ -1092,9 +1092,9 @@ class DataFetcherManager:
                                 logger.info(f"[实时行情] 美股指数 {stock_code} 成功获取 (来源: yfinance)")
                                 return quote
                         except Exception as e:
-                            logger.warning(f"[实时行情] 美股指数 {stock_code} 获取失败: {e}")
+                            logger.info(f"[实时行情] 美股指数 {stock_code} 获取失败，继续降级: {e}")
                     break
-            logger.warning(f"[实时行情] 美股指数 {stock_code} 无可用数据源")
+            logger.debug(f"[实时行情] 美股指数 {stock_code} 无可用数据源")
             return None
 
         # 美股单独处理，使用 YfinanceFetcher
@@ -1108,9 +1108,9 @@ class DataFetcherManager:
                                 logger.info(f"[实时行情] 美股 {stock_code} 成功获取 (来源: yfinance)")
                                 return quote
                         except Exception as e:
-                            logger.warning(f"[实时行情] 美股 {stock_code} 获取失败: {e}")
+                            logger.info(f"[实时行情] 美股 {stock_code} 获取失败，继续降级: {e}")
                     break
-            logger.warning(f"[实时行情] 美股 {stock_code} 无可用数据源")
+            logger.debug(f"[实时行情] 美股 {stock_code} 无可用数据源")
             return None
 
         # 港股实时行情只走港股专用入口，避免按 A 股 source_priority
@@ -1127,10 +1127,10 @@ class DataFetcherManager:
                         logger.info(f"[实时行情] 港股 {stock_code} 成功获取 (来源: akshare_hk)")
                         return quote
                 except Exception as e:
-                    logger.warning(f"[实时行情] 港股 {stock_code} 获取失败: {e}")
+                    logger.info(f"[实时行情] 港股 {stock_code} 获取失败，继续降级: {e}")
                 break
 
-            logger.warning(f"[实时行情] 港股 {stock_code} 无可用数据源")
+            logger.debug(f"[实时行情] 港股 {stock_code} 无可用数据源")
             return None
         
         # 获取配置的数据源优先级
@@ -1213,7 +1213,7 @@ class DataFetcherManager:
                     
             except Exception as e:
                 error_msg = f"[{source}] 失败: {str(e)}"
-                logger.warning(error_msg)
+                logger.info(f"[实时行情] {stock_code} {error_msg}，继续尝试下一个数据源")
                 errors.append(error_msg)
                 continue
         
@@ -1223,10 +1223,10 @@ class DataFetcherManager:
 
         # 所有数据源都失败，返回 None（降级兜底）
         if errors:
-            logger.warning(f"[实时行情] {stock_code} 所有数据源均失败，降级处理: {'; '.join(errors)}")
+            logger.debug(f"[实时行情] {stock_code} 所有数据源均失败: {'; '.join(errors)}")
         else:
-            logger.warning(f"[实时行情] {stock_code} 无可用数据源")
-        
+            logger.debug(f"[实时行情] {stock_code} 无可用数据源")
+
         return None
 
     # Fields worth supplementing from secondary sources when the primary
