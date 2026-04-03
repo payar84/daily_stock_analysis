@@ -1201,16 +1201,11 @@ class StockAnalysisPipeline:
             effective_query_id = analysis_query_id or self.query_id or uuid.uuid4().hex
             result = self.analyze_stock(code, report_type, query_id=effective_query_id)
             
-            if result:
-                if not result.success:
-                    logger.warning(
-                        f"[{code}] 分析未成功: {result.error_message or '未知错误'}"
-                    )
-                else:
-                    logger.info(
-                        f"[{code}] 分析完成: {result.operation_advice}, "
-                        f"评分 {result.sentiment_score}"
-                    )
+            if result and result.success:
+                logger.info(
+                    f"[{code}] 分析完成: {result.operation_advice}, "
+                    f"评分 {result.sentiment_score}"
+                )
                 
                 # 单股推送模式（#55）：每分析完一只股票立即推送
                 if single_stock_notify:
@@ -1219,6 +1214,10 @@ class StockAnalysisPipeline:
                         report_type=report_type,
                         fallback_code=code,
                     )
+            elif result:
+                logger.warning(
+                    f"[{code}] 分析未成功: {result.error_message or '未知错误'}"
+                )
             
             return result
             

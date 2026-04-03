@@ -1192,17 +1192,18 @@ class GeminiAnalyzer:
                         return response_text, model, usage
                     except _LiteLLMStreamError as exc:
                         if exc.partial_received:
-                            logger.error(
-                                "[LiteLLM] %s stream failed after partial output: %s",
+                            logger.warning(
+                                "[LiteLLM] %s stream failed after partial output, retrying non-stream for same model: %s",
                                 model,
                                 exc,
                             )
-                            raise
-                        logger.warning(
-                            "[LiteLLM] %s stream unavailable before first chunk, falling back to non-stream: %s",
-                            model,
-                            exc,
-                        )
+                        else:
+                            logger.warning(
+                                "[LiteLLM] %s stream unavailable before first chunk, falling back to non-stream: %s",
+                                model,
+                                exc,
+                            )
+                        last_error = exc
                     except Exception as exc:
                         logger.warning(
                             "[LiteLLM] %s stream request failed before first chunk, falling back to non-stream: %s",
@@ -1223,9 +1224,6 @@ class GeminiAnalyzer:
                     return (response.choices[0].message.content, model, usage)
                 raise ValueError("LLM returned empty response")
 
-            except _LiteLLMStreamError as e:
-                last_error = e
-                break
             except Exception as e:
                 logger.warning(f"[LiteLLM] {model} failed: {e}")
                 last_error = e

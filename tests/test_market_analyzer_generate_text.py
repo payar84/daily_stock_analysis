@@ -141,6 +141,60 @@ class TestAnalyzerGenerateText:
         assert dispatch_calls[0]["stream"] is True
         assert "stream" not in dispatch_calls[1]
 
+    def test_call_litellm_stream_falls_back_to_non_stream_after_partial_and_falls_back_model(self):
+        analyzer = self._make_analyzer()
+        analyzer._config_override = SimpleNamespace(
+            litellm_model="provider/bad-model",
+            litellm_fallback_models=["provider/good-model"],
+            llm_model_list=[],
+        )
+
+        def partial_then_broken_stream():
+            yield SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content="abc"))],
+                usage=None,
+            )
+            raise RuntimeError("stream disconnected")
+
+        def good_stream():
+            yield SimpleNamespace(
+                choices=[SimpleNamespace(delta=SimpleNamespace(content="fallback"))],
+                usage=SimpleNamespace(prompt_tokens=4, completion_tokens=5, total_tokens=9),
+            )
+
+        fallback_response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="fallback full"))],
+            usage=SimpleNamespace(prompt_tokens=7, completion_tokens=8, total_tokens=15),
+        )
+
+        dispatch_calls = []
+
+        def fake_dispatch(model, call_kwargs, **kwargs):
+            dispatch_calls.append((model, bool(call_kwargs.get("stream"))))
+            if model == "provider/bad-model":
+                if call_kwargs.get("stream"):
+                    return partial_then_broken_stream()
+                raise RuntimeError("non-stream model broken")
+            if call_kwargs.get("stream"):
+                return good_stream()
+            return fallback_response
+
+        with patch.object(analyzer, "_dispatch_litellm_completion", side_effect=fake_dispatch):
+            text, model_used, usage = analyzer._call_litellm(
+                "prompt",
+                {"max_tokens": 128, "temperature": 0.2},
+                stream=True,
+            )
+
+        assert text == "fallback"
+        assert model_used == "provider/good-model"
+        assert usage == {"prompt_tokens": 4, "completion_tokens": 5, "total_tokens": 9}
+        assert dispatch_calls == [
+            ("provider/bad-model", True),
+            ("provider/bad-model", False),
+            ("provider/good-model", True),
+        ]
+
     def test_analyze_integrity_retry_keeps_progress_monotonic(self):
         analyzer = self._make_analyzer()
         analyzer._config_override = SimpleNamespace(
