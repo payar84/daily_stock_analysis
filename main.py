@@ -30,11 +30,11 @@ def get_config() -> dict:
     """Load configuration from environment variables."""
     return {
         "api_key": os.getenv("STOCK_API_KEY", ""),
-        "market": os.getenv("MARKET", "CN"),
+        "market": os.getenv("MARKET", "US"),  # changed default from CN to US for my use case
         "symbols": os.getenv("WATCH_SYMBOLS", "").split(","),
         "output_dir": os.getenv("OUTPUT_DIR", "output"),
         "notify_email": os.getenv("NOTIFY_EMAIL", ""),
-        "analysis_period": int(os.getenv("ANALYSIS_PERIOD_DAYS", "30")),
+        "analysis_period": int(os.getenv("ANALYSIS_PERIOD_DAYS", "90")),  # extended default from 30 to 90 days
     }
 
 
